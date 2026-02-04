@@ -1,44 +1,63 @@
-import os
-from aiogram import Bot, Dispatcher, types
-from aiogram.utils import executor
+import telebot, os, requests, yt_dlp
+from youtube_search import YoutubeSearch
+from telebot import types
 
-# TOKENNI BU YERGA YOZ
-BOT_TOKEN = "8200840668:AAFAcLUyzg4ltoaZT0Bs2KvoAJNgaN3GSIA"
+# ⚙️ SOZLAMALAR
+TOKEN = "8542620824:AAF6CjdWm5oJqTKxW7xsuWBJ9WO1qkHiLpI"
+bot = telebot.TeleBot(TOKEN)
 
-bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(bot)
+def get_opts():
+    return {
+        'format': 'bestaudio/best',
+        'postprocessors': [{'key': 'FFmpegExtractAudio','preferredcodec': 'mp3','preferredquality': '192'}],
+        'quiet': True, 'no_warnings': True,
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0'
+    }
 
-@dp.message_handler(commands=["start"])
-async def start(message: types.Message):
-    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.add("📦 Modlar")
-    await message.answer(
-        "Salom! Minecraft Bedrock modlarini olish uchun tugmani bosing 👇",
-        reply_markup=keyboard
-    )
+def download_audio(url, chat_id, msg_id):
+    bot.edit_message_text("⏳ Yuklanmoqda...", chat_id, msg_id)
+    try:
+        with yt_dlp.YoutubeDL(get_opts()) as ydl:
+            info = ydl.extract_info(url, download=True)
+            title = info.get('title', 'Musiqa').replace('/', '_')
+            perf = info.get('uploader', 'Artist')
+            file = ydl.prepare_filename(info).rsplit('.', 1)[0] + ".mp3"
+            
+            with open(file, 'rb') as audio:
+                bot.send_audio(chat_id, audio, title=title, performer=perf)
+            
+            bot.delete_message(chat_id, msg_id)
+            if os.path.exists(file): os.remove(file)
+    except Exception as e:
+        bot.edit_message_text(f"❌ Xato: {str(e)[:50]}", chat_id, msg_id)
 
-@dp.message_handler(lambda msg: msg.text == "📦 Modlar")
-async def send_mods(message: types.Message):
-    mods_dir = "mods"
+@bot.message_handler(commands=['start'])
+def start(m):
+    bot.send_message(m.chat.id, "Salom! Musiqa nomini yoki YouTube linkini yuboring.")
 
-    if not os.path.exists(mods_dir):
-        await message.answer("❌ Hozircha modlar yo‘q.")
-        return
+@bot.message_handler(func=lambda m: True)
+def handle(m):
+    if "youtube.com" in m.text or "youtu.be" in m.text:
+        st = bot.reply_to(m, "🔗 Tahlil...")
+        download_audio(m.text, m.chat.id, st.message_id)
+    else:
+        st = bot.reply_to(m, "🔎 Qidiruv...")
+        res = YoutubeSearch(m.text, max_results=10).to_dict()
+        if not res: return bot.edit_message_text("Topilmadi.", m.chat.id, st.message_id)
+        
+        txt = "Natijalar:\n\n"
+        kb = types.InlineKeyboardMarkup(row_width=5)
+        btns = [types.InlineKeyboardButton(text=str(i), callback_data=f"dl_{r['id']}") for i, r in enumerate(res, 1)]
+        for i, r in enumerate(res, 1): txt += f"{i}. {r['title']}\n"
+        kb.add(*btns)
+        bot.edit_message_text(txt, m.chat.id, st.message_id, reply_markup=kb)
 
-    files = os.listdir(mods_dir)
-
-    if not files:
-        await message.answer("❌ mods papkasi bo‘sh.")
-        return
-
-    await message.answer("📤 Modlar yuborilmoqda...")
-
-    for file in files:
-        path = os.path.join(mods_dir, file)
-        try:
-            await message.answer_document(open(path, "rb"))
-        except:
-            await message.answer(f"❌ {file} yuborilmadi.")
+@bot.callback_query_handler(func=lambda call: call.data.startswith('dl_'))
+def call_dl(c):
+    url = f"https://www.youtube.com/watch?v={c.data.split('_')[1]}"
+    bot.answer_callback_query(c.id, "Yuklash...")
+    download_audio(url, c.message.chat.id, c.message.message_id)
 
 if __name__ == "__main__":
-    executor.start_polling(dp)
+    bot.infinity_polling()
+    
