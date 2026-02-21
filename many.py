@@ -4,7 +4,7 @@ import os
 from youtube_search import YoutubeSearch
 
 # Bot tokeningizni shu yerga yozing
-TOKEN = 'BOT_TOKENINGIZNI_SHU_YERGA_YOZING'
+TOKEN = '8542620824:AAF6CjdWm5oJqTKxW7xsuWBJ9WO1qkHiLpI'
 bot = telebot.TeleBot(TOKEN)
 
 # Musiqa qidirish funksiyasi
