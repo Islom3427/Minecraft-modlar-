@@ -1,5 +1,1 @@
 pyTelegramBotAPI
-yt-dlp
-youtube-search
-requests
-
