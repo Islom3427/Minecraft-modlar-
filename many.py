@@ -1,71 +1,42 @@
 import telebot
 import yt_dlp
 import os
-from youtube_search import YoutubeSearch
 
-# Bot tokeningizni shu yerga yozing
-TOKEN = '8542620824:AAF6CjdWm5oJqTKxW7xsuWBJ9WO1qkHiLpI'
+# Bot tokeningizni kiriting
+TOKEN = 'SIZNING_BOT_TOKENINGIZ'
 bot = telebot.TeleBot(TOKEN)
 
 # Musiqa qidirish funksiyasi
-def search_youtube(query):
-    try:
-        results = YoutubeSearch(query, max_results=1).to_dict()
-        if results:
-            return "https://www.youtube.com" + results[0]['url_suffix']
-        return None
-    except:
-        return None
-
-@bot.message_handler(commands=['start'])
-def start(message):
-    bot.reply_to(message, "Salom! Musiqa nomini yozing yoki YouTube havolasini yuboring. 🎵")
-
-@bot.message_handler(func=lambda message: True)
-def handle_message(message):
-    text = message.text
-    chat_id = message.chat.id
-    
-    # Agar foydalanuvchi link yuborsa o'sha linkni oladi, aks holda qidiradi
-    if "youtube.com" in text or "youtu.be" in text:
-        url = text
-    else:
-        status_msg = bot.send_message(chat_id, "🔍 Qidirilmoqda...")
-        url = search_youtube(text)
-        bot.delete_message(chat_id, status_msg.message_id)
-
-    if not url:
-        bot.send_message(chat_id, "❌ Musiqa topilmadi.")
-        return
-
-    processing_msg = bot.send_message(chat_id, "📥 Musiqa tayyorlanmoqda, iltimos kuting...")
-
-    # Yuklab olish sozlamalari
+def download_music(query):
     ydl_opts = {
         'format': 'bestaudio/best',
-        'outtmpl': 'downloads/%(title)s.%(ext)s',
+        'noplaylist': True,
+        'default_search': 'ytsearch',
+        'outtmpl': 'music.mp3',
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
             'preferredquality': '192',
         }],
-        'quiet': True
     }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([query])
 
+@bot.message_handler(commands=['start'])
+def start(message):
+    bot.reply_to(message, "Salom Islom! Musiqa nomini yozing, men uni topib beraman.")
+
+@bot.message_handler(func=lambda m: True)
+def search_and_send(message):
+    msg = bot.send_message(message.chat.id, "Qidiryapman, kuting...")
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            filename = ydl.prepare_filename(info).replace('.webm', '.mp3').replace('.m4a', '.mp3')
-        
-        with open(filename, 'rb') as audio:
-            bot.send_audio(chat_id, audio, caption="✅ @SizningBotNomingiz orqali yuklab olindi")
-        
-        # Faylni o'chirish (serverda joy qolishi uchun)
-        os.remove(filename)
-        bot.delete_message(chat_id, processing_msg.message_id)
-
+        download_music(message.text)
+        with open('music.mp3', 'rb') as audio:
+            bot.send_audio(message.chat.id, audio)
+        os.remove('music.mp3') # Faylni yuborgach o'chirib tashlaymiz
+        bot.delete_message(message.chat.id, msg.message_id)
     except Exception as e:
-        bot.edit_message_text(f"❌ Yuklashda xato: YouTube cheklovi yoki xato yuz berdi.", chat_id, processing_msg.message_id)
-        print(f"Xato: {e}")
+        bot.edit_message_text(f"Xatolik yuz berdi: {e}", message.chat.id, msg.message_id)
 
-bot.polling(none_stop=True)
+print("Bot ishga tushdi...")
+bot.infinity_polling()
