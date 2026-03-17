@@ -3,7 +3,7 @@ import yt_dlp
 import os
 
 # Bot tokeningizni kiriting
-TOKEN = 'SIZNING_BOT_TOKENINGIZ'
+TOKEN = '8542620824:AAF6CjdWm5oJqTKxW7xsuWBJ9WO1qkHiLpI'
 bot = telebot.TeleBot(TOKEN)
 
 # Musiqa qidirish funksiyasi
