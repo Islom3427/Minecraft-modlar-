@@ -1,45 +1,57 @@
-import telebot
-import yt_dlp
 import os
+import telebot
+from flask import Flask
+import yt_dlp
+import threading
 
-# BotFather'dan olgan tokenni SHU YERGA qo'ying
+# 1. BOT SOZLAMALARI
 TOKEN = '8542620824:AAF6CjdWm5oJqTKxW7xsuWBJ9WO1qkHiLpI'
 bot = telebot.TeleBot(TOKEN)
+server = Flask(__name__)
 
-def download_audio(query):
-    # Musiqani qidirish va yuklash sozlamalari
-    ydl_opts = {
-        'format': 'bestaudio/best',
-        'noplaylist': True,
-        'default_search': 'ytsearch',
-        'outtmpl': 'song.mp3',
-        'quiet': True
-    }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([query])
+# Render o'chib qolmasligi uchun kichik sahifa
+@server.route("/")
+def index():
+    return "Bot Render-da muvaffaqiyatli ishlayapti!", 200
 
+# 2. BOT BUYRUQLARI
 @bot.message_handler(commands=['start'])
 def start(message):
-    bot.reply_to(message, "Salom Islom! Qaysi musiqani topib beray? Ismini yozing. 💎")
+    bot.reply_to(message, "Salom Islom! Botingiz Render-da yondi! 🎵\nMusiqa nomini yozing:")
 
 @bot.message_handler(func=lambda m: True)
-def search(message):
-    msg = bot.send_message(message.chat.id, "🔍 Qidiryapman, kuting...")
+def handle(message):
     try:
-        # Qidirish va yuklash
-        download_audio(message.text)
+        msg = bot.send_message(message.chat.id, "🔍 Qidirilmoqda...")
+        out_file = '/tmp/musiqa.mp3'
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'default_search': 'ytsearch',
+            'outtmpl': out_file,
+            'quiet': True,
+            'no_warnings': True
+        }
         
-        # Musiqani yuborish
-        with open('song.mp3', 'rb') as audio:
-            bot.send_audio(message.chat.id, audio, caption=f"✅ {message.text} topildi!")
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([message.text])
         
-        # RAM to'lib qolmasligi uchun faylni o'chirish
-        if os.path.exists("song.mp3"):
-            os.remove("song.mp3")
+        with open(out_file, 'rb') as audio:
+            bot.send_audio(message.chat.id, audio, caption="Tayyor! ✅ @islombek2437mc")
+        
+        if os.path.exists(out_file):
+            os.remove(out_file)
         bot.delete_message(message.chat.id, msg.message_id)
-
     except Exception as e:
-        bot.edit_message_text(f"❌ Xatolik: {e}", message.chat.id, msg.message_id)
+        bot.reply_to(message, f"Xato: {str(e)[:100]}")
 
-print("Bot ishlashga tayyor!")
-bot.infinity_polling()
+# 3. BOTNI ISHGA TUSHIRISH
+def run_bot():
+    bot.infinity_polling()
+
+if __name__ == "__main__":
+    # Botni orqa fonda (threading) yurgizamiz
+    threading.Thread(target=run_bot).start()
+    # Render portini avtomatik aniqlash
+    port = int(os.environ.get("PORT", 5000))
+    server.run(host='0.0.0.0', port=port)
+    
